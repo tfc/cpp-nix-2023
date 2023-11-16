@@ -7,29 +7,27 @@
 
   outputs = inputs@{ flake-parts, ... }:
     flake-parts.lib.mkFlake { inherit inputs; } {
-      # This is the list of architectures that work with this project
       systems = [
         "x86_64-linux" "aarch64-linux" "aarch64-darwin" "x86_64-darwin"
       ];
       perSystem = { config, self', inputs', pkgs, system, ... }: {
-
-        # devShells.default describes the default shell with C++, cmake, boost,
-        # and catch2
-        devShells.default = pkgs.mkShell {
-          packages = with pkgs; [
-            # C++ Compiler is already part of stdenv
-            boost
-            catch2
-            cmake
-          ];
+        packages = {
+          default = pkgs.callPackage ./package.nix { };
+          clang = pkgs.callPackage ./package.nix { stdenv = pkgs.clangStdenv; };
+        } // pkgs.lib.optionalAttrs (system != "x86_64-linux") {
+          crossIntel = pkgs.pkgsCross.gnu64.callPackage ./package.nix {
+            enableTests = false;
+          };
+        } // pkgs.lib.optionalAttrs (system != "aarch64-linux") {
+          crossAarch64 = pkgs.pkgsCross.aarch64-multiplatform.callPackage ./package.nix {
+            enableTests = false;
+          };
         };
 
-        clang = pkgs.mkShell.override { stdenv = pkgs.clangStdenv; } {
-          packages = with pkgs; [
-            boost
-            catch2
-            cmake
-          ];
+        checks = config.packages // {
+          clang = config.packages.default.override {
+            stdenv = pkgs.clangStdenv;
+          };
         };
       };
     };
